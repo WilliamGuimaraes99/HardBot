@@ -200,6 +200,26 @@
     .type-cooler { background: rgba(56,189,248,.15);  color: #38bdf8; }
     .type-other  { background: rgba(100,116,139,.15); color: #64748b; }
 
+    /* ── Search typing indicator ── */
+    .search-typing {
+      border: 1px solid rgba(249,115,22,.35) !important;
+      background: rgba(249,115,22,.08) !important;
+      padding: 10px 14px !important;
+    }
+    .search-typing span[style] { animation: none !important; }
+
+    /* ── Links nas respostas ── */
+    .msg-bubble a {
+      color: var(--accent);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(0,200,255,.3);
+      transition: border-color .2s, color .2s;
+    }
+    .msg-bubble a:hover {
+      color: #fff;
+      border-bottom-color: var(--accent);
+    }
+
     @media (max-width: 700px) { .sidebar { display: none; } }
   </style>
 </head>
@@ -390,6 +410,15 @@ let isLoading = false;
 // ── Chama a função Netlify (a chave fica no servidor) ─────────────
 const API_ENDPOINT = '/.netlify/functions/chat';
 
+// ── Palavras que indicam busca de preços/cupons (para o indicador visual) ──
+const SEARCH_DETECT = [
+  'preço','preços','valor','custo','quanto custa','mais barato','menor preço',
+  'melhor preço','comprar','onde comprar','loja','onde encontrar','cotação',
+  'link','compra online','encontrar','pesquisar','buscar','verificar preço',
+  'cupom','cupons','desconto','promoção','promoções','oferta','ofertas',
+  'cashback','código promocional','busque','pesquise',
+];
+
 const SYSTEM_PROMPT = `Você é um Agente Especialista em Pesquisa de Hardware, Computadores, Setup Gamer, Workstations, IA Local, Upgrade de PCs, Compatibilidade de Componentes e Busca de Cupons Válidos.
 
 Seu objetivo é ajudar usuários a encontrar: computadores completos, notebooks, componentes de hardware, periféricos, melhores preços, melhor custo-benefício, compatibilidade entre peças, configurações ideais, cupons válidos e promoções reais, comparativos detalhados, avaliações técnicas, consumo energético, temperaturas, gargalos, benchmarks, e compatibilidade para IA local, automação, programação, trading e games.
@@ -409,11 +438,54 @@ Responder de forma técnica porém fácil de entender. Adaptar o nível técnico
 
 NUNCA: inventar benchmarks, inventar cupons, inventar compatibilidade, inventar preços, ignorar limitações térmicas, ignorar consumo energético, recomendar fontes genéricas, recomendar hardware sem verificar compatibilidade.
 
+## ⚡ REGRAS ABSOLUTAS SOBRE LINKS E PREÇOS
+
+### 🚫 PROIBIDO — Nunca faça isso:
+- **NUNCA** diga "não posso fornecer links diretos"
+- **NUNCA** diga "não tenho acesso a links de produtos"
+- **NUNCA** invente URLs ou links que não existam nos dados de busca
+- **NUNCA** forneça apenas o link da homepage da loja (amazon.com.br) — sempre o link direto do produto
+
+### ✅ OBRIGATÓRIO — Sempre faça isso:
+Quando a mensagem contiver um bloco marcado com "RESULTADOS REAIS DO GOOGLE":
+
+1. **USE os links EXATOS** fornecidos no bloco — copie as URLs literalmente
+2. **FORMATE** como markdown: [Nome do produto na loja](URL_EXATA)
+3. **ORGANIZE** por menor preço encontrado
+4. **DESTAQUE** o menor preço em negrito
+5. **CITE** o valor mencionado no snippet se houver "R$ X.XXX"
+6. **INFORME cupons** com código, desconto, loja e link
+7. **ADICIONE** o badge "🔍 Preços verificados via Google em tempo real"
+
+### Quando não houver dados de busca:
+Diga: "Não encontrei o preço atual em tempo real. Recomendo pesquisar diretamente em: [KaBuM!](https://www.kabum.com.br), [Pichau](https://www.pichau.com.br), [Terabyte](https://www.terabyteshop.com.br)"
+
+### FORMATO OBRIGATÓRIO PARA PREÇOS:
+
+## 💰 Preços Encontrados  🔍 Verificados em tempo real
+
+| Loja | Produto | Preço | Link |
+|------|---------|-------|------|
+| KaBuM! | [Nome](URL) | R$ X.XXX | [Ver oferta](URL) |
+| Pichau | [Nome](URL) | R$ X.XXX | [Ver oferta](URL) |
+
+**Menor preço: R$ X.XXX na [Loja](URL)**
+
+### FORMATO PARA CUPONS:
+
+## 🎟️ Cupons Válidos Encontrados
+
+| Cupom | Desconto | Loja | Validade | Link |
+|-------|----------|------|----------|------|
+| CÓDIGO | X% off | Loja | Data | [Usar cupom](URL) |
+
 ## FORMATO DAS RESPOSTAS
 Quando aplicável, estruturar com:
 # OBJETIVO IDENTIFICADO
 # MELHORES OPÇÕES (Opção 1 — custo-benefício, Opção 2 — desempenho)
 # COMPARATIVO TÉCNICO (tabela markdown)
+# 💰 PREÇOS ENCONTRADOS (com links reais quando disponíveis)
+# 🎟️ CUPONS VÁLIDOS (quando encontrados)
 # COMPATIBILIDADE
 # RECOMENDAÇÃO FINAL
 # ALERTAS IMPORTANTES
@@ -571,7 +643,11 @@ async function sendMessage() {
   messages.push({ role: 'user', content: text + buildContextBlock() });
   appendMessage('user', text);
   input.value = ''; input.style.height = 'auto';
-  setLoading(true);
+
+  // Detecta se vai fazer busca de preços para mostrar indicador correto
+  const lowerText   = text.toLowerCase();
+  const willSearch  = SEARCH_DETECT.some(w => lowerText.includes(w));
+  setLoading(true, willSearch);
 
   try {
     const model   = localStorage.getItem('hb_model')        || 'llama-3.3-70b-versatile';
@@ -599,11 +675,11 @@ async function sendMessage() {
     const reply = data.choices?.[0]?.message?.content || '(sem resposta)';
 
     messages.push({ role: 'assistant', content: reply });
-    setLoading(false);
+    setLoading(false, false);
     appendMessage('assistant', reply);
 
   } catch (err) {
-    setLoading(false);
+    setLoading(false, false);
     messages.pop();
     const msg = err.message || '';
     if (msg.includes('429') || msg.includes('rate_limit')) {
@@ -634,14 +710,32 @@ function appendMessage(role, content) {
   container.scrollTop = container.scrollHeight;
 }
 
-function setLoading(state) {
+function setLoading(state, isSearching = false) {
   isLoading = state;
   document.getElementById('btn-send').disabled = state;
   const container = document.getElementById('messages');
+
   if (state) {
     const w = document.createElement('div');
     w.className = 'msg assistant'; w.id = 'typing-indicator';
-    w.innerHTML = '<div class="msg-avatar">⚡</div><div class="msg-body"><div class="typing"><span></span><span></span><span></span></div></div>';
+
+    if (isSearching) {
+      // Indicador especial para busca de preços
+      w.innerHTML = `
+        <div class="msg-avatar" style="background:linear-gradient(135deg,#f97316,#e05500)">🔍</div>
+        <div class="msg-body">
+          <div class="typing search-typing">
+            <span></span><span></span><span></span>
+            <span style="width:auto;height:auto;background:none;border-radius:0;animation:none;
+              font-size:11px;color:var(--orange);margin-left:6px;white-space:nowrap;opacity:1">
+              Buscando preços em tempo real...
+            </span>
+          </div>
+        </div>`;
+    } else {
+      w.innerHTML = '<div class="msg-avatar">⚡</div><div class="msg-body"><div class="typing"><span></span><span></span><span></span></div></div>';
+    }
+
     container.appendChild(w); container.scrollTop = container.scrollHeight;
   } else {
     const t = document.getElementById('typing-indicator'); if (t) t.remove();
@@ -658,6 +752,9 @@ function renderMarkdown(text) {
   html = html.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
   html = html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
   html = html.replace(/\*(.+?)\*/g,'<em>$1</em>');
+  // Links markdown [texto](url) — abre em nova aba
+  html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener noreferrer">$1 ↗</a>');
   html = html.replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>');
   html = html.replace(/^---+$/gm,'<hr>');
   html = html.replace(/(\|.+\|\n)+/g, match => {
