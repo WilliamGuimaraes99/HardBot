@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HardBot — Especialista em Hardware</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg0: #060c18; --bg1: #0b1427; --bg2: #111e36; --bg3: #162440;
+      --border: #1a2e4a; --border2: #1f3a5c;
+      --accent: #00c8ff; --accent2: #7c3aed;
+      --accent-dim: rgba(0,200,255,.12); --accent2-dim: rgba(124,58,237,.12);
+      --txt: #dde6f5; --txt2: #8090ab; --txt3: #4a5a72;
+      --green: #10b981; --yellow: #f59e0b; --red: #ef4444; --orange: #f97316;
+      --font: 'Segoe UI', system-ui, sans-serif;
+      --mono: 'Cascadia Code', 'Courier New', monospace;
+      --radius: 10px; --shadow: 0 4px 24px rgba(0,0,0,.5);
+    }
+
+    html, body { height: 100%; overflow: hidden; }
+    body { font-family: var(--font); background: var(--bg0); color: var(--txt); display: flex; flex-direction: column; font-size: 14px; line-height: 1.6; }
+
+    ::-webkit-scrollbar { width: 5px; }
+    ::-webkit-scrollbar-track { background: var(--bg1); }
+    ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+    /* ── Header ── */
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 20px; height: 52px;
+      background: var(--bg1); border-bottom: 1px solid var(--border);
+      flex-shrink: 0; z-index: 10;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 16px; letter-spacing: .5px; }
+    .logo-icon { width: 30px; height: 30px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; }
+    .logo span { color: var(--accent); }
+    .logo-powered { font-size: 10px; color: var(--txt3); font-weight: 400; margin-left: 4px; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+    .model-badge { font-size: 11px; padding: 3px 9px; background: rgba(249,115,22,.12); border: 1px solid rgba(249,115,22,.3); border-radius: 20px; color: var(--orange); font-family: var(--mono); }
+    .btn-icon { background: none; border: 1px solid var(--border2); border-radius: 8px; color: var(--txt2); width: 34px; height: 34px; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 15px; transition: all .2s; }
+    .btn-icon:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    /* ── Layout ── */
+    .layout { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Sidebar ── */
+    .sidebar { width: 290px; min-width: 290px; background: var(--bg1); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; }
+    .sidebar-scroll { flex: 1; overflow-y: auto; padding: 14px; }
+    .section-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; color: var(--txt3); margin: 16px 0 8px; font-weight: 600; }
+    .section-label:first-child { margin-top: 0; }
+    .config-card { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; margin-bottom: 8px; }
+    .config-card label { display: block; font-size: 11px; color: var(--txt2); margin-bottom: 5px; font-weight: 500; }
+    .config-card input, .config-card select { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 7px; color: var(--txt); padding: 7px 10px; font-size: 13px; outline: none; transition: border-color .2s; font-family: var(--font); }
+    .config-card input:focus, .config-card select:focus { border-color: var(--accent); }
+    .config-card select option { background: var(--bg3); }
+    .budget-row { display: flex; align-items: center; gap: 6px; }
+
+    .hw-list { display: flex; flex-direction: column; gap: 5px; margin-bottom: 8px; }
+    .hw-item { display: flex; align-items: center; gap: 8px; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; transition: border-color .2s; }
+    .hw-item:hover { border-color: var(--border2); }
+    .hw-item.owned  { border-left: 3px solid var(--green); }
+    .hw-item.wanted { border-left: 3px solid var(--accent); }
+    .hw-type-badge { font-size: 9px; text-transform: uppercase; letter-spacing: .8px; padding: 2px 6px; border-radius: 5px; font-weight: 700; white-space: nowrap; flex-shrink: 0; }
+    .hw-name { flex: 1; font-size: 12px; color: var(--txt); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .hw-remove { background: none; border: none; color: var(--txt3); cursor: pointer; font-size: 13px; padding: 0 2px; transition: color .2s; flex-shrink: 0; }
+    .hw-remove:hover { color: var(--red); }
+
+    .add-hw-form { background: var(--bg2); border: 1px solid var(--border2); border-radius: var(--radius); padding: 10px; }
+    .add-hw-form select, .add-hw-form input { width: 100%; background: var(--bg3); border: 1px solid var(--border); border-radius: 7px; color: var(--txt); padding: 6px 9px; font-size: 12px; outline: none; margin-bottom: 6px; font-family: var(--font); transition: border-color .2s; }
+    .add-hw-form select:focus, .add-hw-form input:focus { border-color: var(--accent); }
+    .add-hw-form select option { background: var(--bg3); }
+
+    .toggle-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .toggle-btn { flex: 1; padding: 5px; border-radius: 6px; border: 1px solid var(--border2); background: none; color: var(--txt2); font-size: 11px; cursor: pointer; transition: all .2s; }
+    .toggle-btn.active-owned  { background: rgba(16,185,129,.15); border-color: var(--green); color: var(--green); }
+    .toggle-btn.active-wanted { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+    .btn-add { width: 100%; padding: 7px; background: linear-gradient(135deg, var(--accent), #0088cc); border: none; border-radius: 7px; color: #fff; font-size: 12px; font-weight: 600; cursor: pointer; transition: opacity .2s; }
+    .btn-add:hover { opacity: .85; }
+
+    .quick-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+    .qa-btn { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; color: var(--txt2); padding: 9px 8px; cursor: pointer; font-size: 11px; text-align: center; transition: all .2s; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .qa-btn .qa-icon { font-size: 18px; }
+    .qa-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    .sidebar-footer { padding: 10px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .btn-new-chat { width: 100%; padding: 9px; background: var(--accent2-dim); border: 1px solid rgba(124,58,237,.35); border-radius: 8px; color: #a78bfa; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s; }
+    .btn-new-chat:hover { background: rgba(124,58,237,.25); border-color: var(--accent2); }
+
+    /* ── Main ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+    .context-bar { display: flex; align-items: center; gap: 8px; padding: 8px 16px; background: var(--bg1); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--txt2); flex-shrink: 0; flex-wrap: wrap; }
+    .ctx-tag { display: flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 500; }
+    .ctx-tag.budget  { background: rgba(16,185,129,.12); border: 1px solid rgba(16,185,129,.25); color: var(--green); }
+    .ctx-tag.usecase { background: var(--accent-dim); border: 1px solid rgba(0,200,255,.25); color: var(--accent); }
+    .ctx-tag.region  { background: rgba(245,158,11,.1); border: 1px solid rgba(245,158,11,.2); color: var(--yellow); }
+    .ctx-tag.parts   { background: var(--accent2-dim); border: 1px solid rgba(124,58,237,.25); color: #a78bfa; }
+
+    .messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+
+    .welcome { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; text-align: center; padding: 40px 20px; gap: 16px; }
+    .welcome-icon { width: 72px; height: 72px; background: linear-gradient(135deg, var(--accent), var(--accent2)); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 36px; box-shadow: 0 0 40px rgba(0,200,255,.25); }
+    .welcome h2 { font-size: 22px; color: var(--txt); }
+    .welcome p { color: var(--txt2); max-width: 480px; font-size: 14px; }
+    .groq-badge { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; background: rgba(249,115,22,.1); border: 1px solid rgba(249,115,22,.25); border-radius: 20px; font-size: 11px; color: var(--orange); }
+    .welcome-chips { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin-top: 8px; }
+    .w-chip { padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border2); background: var(--bg2); color: var(--txt2); font-size: 12px; cursor: pointer; transition: all .2s; }
+    .w-chip:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
+
+    .msg { display: flex; gap: 12px; max-width: 820px; width: 100%; animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .msg.user      { align-self: flex-end; flex-direction: row-reverse; }
+    .msg.assistant { align-self: flex-start; }
+    .msg-avatar { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+    .msg.assistant .msg-avatar { background: linear-gradient(135deg, var(--accent), var(--accent2)); }
+    .msg.user .msg-avatar { background: var(--bg3); border: 1px solid var(--border2); }
+    .msg-body { flex: 1; min-width: 0; }
+    .msg-bubble { padding: 12px 16px; border-radius: 12px; line-height: 1.7; word-break: break-word; }
+    .msg.user .msg-bubble { background: linear-gradient(135deg, #0a2550, #0d1f40); border: 1px solid rgba(0,200,255,.2); border-radius: 12px 12px 4px 12px; }
+    .msg.assistant .msg-bubble { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px 12px 12px 4px; }
+    .msg-time { font-size: 10px; color: var(--txt3); margin-top: 4px; padding: 0 4px; }
+    .msg.user .msg-time { text-align: right; }
+
+    .msg-bubble h1, .msg-bubble h2, .msg-bubble h3 { color: var(--accent); margin: 14px 0 6px; line-height: 1.3; }
+    .msg-bubble h1 { font-size: 17px; border-bottom: 1px solid var(--border2); padding-bottom: 6px; }
+    .msg-bubble h2 { font-size: 15px; }
+    .msg-bubble h3 { font-size: 13px; color: var(--txt); }
+    .msg-bubble p { margin: 6px 0; }
+    .msg-bubble ul, .msg-bubble ol { margin: 6px 0 6px 18px; }
+    .msg-bubble li { margin: 3px 0; }
+    .msg-bubble strong { color: var(--txt); font-weight: 600; }
+    .msg-bubble em { color: var(--txt2); font-style: italic; }
+    .msg-bubble code { background: var(--bg0); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-family: var(--mono); font-size: 12px; color: var(--accent); }
+    .msg-bubble pre { background: var(--bg0); border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-x: auto; margin: 8px 0; }
+    .msg-bubble pre code { background: none; border: none; padding: 0; color: var(--txt2); }
+    .msg-bubble table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; border-radius: 8px; overflow: hidden; }
+    .msg-bubble th { background: var(--bg3); color: var(--accent); padding: 8px 12px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border2); }
+    .msg-bubble td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--txt2); }
+    .msg-bubble tr:last-child td { border-bottom: none; }
+    .msg-bubble tr:nth-child(even) td { background: rgba(255,255,255,.02); }
+    .msg-bubble blockquote { border-left: 3px solid var(--accent); padding: 6px 12px; margin: 8px 0; background: var(--accent-dim); border-radius: 0 6px 6px 0; color: var(--txt2); }
+    .msg-bubble hr { border: none; border-top: 1px solid var(--border2); margin: 12px 0; }
+
+    .typing { display: flex; gap: 5px; align-items: center; padding: 12px 16px; background: var(--bg2); border: 1px solid var(--border); border-radius: 12px 12px 12px 4px; width: fit-content; }
+    .typing span { width: 7px; height: 7px; background: var(--accent); border-radius: 50%; animation: bounce .8s infinite; opacity: .7; }
+    .typing span:nth-child(2) { animation-delay: .15s; }
+    .typing span:nth-child(3) { animation-delay: .3s; }
+    @keyframes bounce { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-6px); } }
+
+    /* ── Input ── */
+    .input-bar { padding: 12px 16px 14px; background: var(--bg1); border-top: 1px solid var(--border); flex-shrink: 0; }
+    .input-outer { display: flex; align-items: flex-end; gap: 8px; background: var(--bg2); border: 1px solid var(--border2); border-radius: 12px; padding: 8px 10px 8px 14px; transition: border-color .2s; }
+    .input-outer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+    #chat-input { flex: 1; background: none; border: none; outline: none; color: var(--txt); font-size: 14px; font-family: var(--font); resize: none; max-height: 120px; min-height: 24px; line-height: 1.5; }
+    #chat-input::placeholder { color: var(--txt3); }
+    .btn-send { width: 36px; height: 36px; background: linear-gradient(135deg, var(--orange), #e05500); border: none; border-radius: 9px; color: #fff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; transition: opacity .2s, transform .1s; flex-shrink: 0; }
+    .btn-send:hover { opacity: .85; }
+    .btn-send:active { transform: scale(.95); }
+    .btn-send:disabled { opacity: .35; cursor: default; }
+    .input-hint { text-align: center; font-size: 11px; color: var(--txt3); margin-top: 7px; }
+
+    /* ── Modal preferências ── */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 1000; backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity .25s; }
+    .modal-overlay.open { opacity: 1; pointer-events: all; }
+    .modal { background: var(--bg2); border: 1px solid var(--border2); border-radius: 16px; padding: 24px; width: 440px; max-width: 95vw; box-shadow: var(--shadow); transform: translateY(10px); transition: transform .25s; }
+    .modal-overlay.open .modal { transform: translateY(0); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .modal-header h3 { font-size: 16px; color: var(--txt); }
+    .modal-close { background: none; border: none; color: var(--txt3); font-size: 18px; cursor: pointer; width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 6px; transition: all .2s; }
+    .modal-close:hover { color: var(--txt); background: var(--bg3); }
+    .modal-field { margin-bottom: 16px; }
+    .modal-field label { display: block; font-size: 12px; color: var(--txt2); margin-bottom: 6px; font-weight: 500; }
+    .modal-field select { width: 100%; background: var(--bg3); border: 1px solid var(--border2); border-radius: 9px; color: var(--txt); padding: 9px 12px; font-size: 13px; outline: none; font-family: var(--font); transition: border-color .2s; }
+    .modal-field select:focus { border-color: var(--accent); }
+    .modal-field select option { background: var(--bg3); }
+    .modal-save { width: 100%; padding: 11px; background: linear-gradient(135deg, var(--orange), #e05500); border: none; border-radius: 10px; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; transition: opacity .2s; }
+    .modal-save:hover { opacity: .85; }
+
+    /* ── Toast ── */
+    .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
+    .toast { padding: 11px 16px; border-radius: 10px; font-size: 13px; box-shadow: var(--shadow); animation: slideIn .3s ease; display: flex; align-items: center; gap: 8px; }
+    @keyframes slideIn { from { opacity:0; transform:translateX(20px); } to { opacity:1; transform:translateX(0); } }
+    .toast.success { background: rgba(16,185,129,.15); border: 1px solid rgba(16,185,129,.35); color: var(--green); }
+    .toast.error   { background: rgba(239,68,68,.12);  border: 1px solid rgba(239,68,68,.3);  color: var(--red); }
+    .toast.warning { background: rgba(245,158,11,.1);  border: 1px solid rgba(245,158,11,.2); color: var(--yellow); }
+    .toast.info    { background: var(--accent-dim);    border: 1px solid rgba(0,200,255,.25); color: var(--accent); }
+
+    /* ── Type colors ── */
+    .type-cpu    { background: rgba(0,200,255,.15);   color: var(--accent); }
+    .type-gpu    { background: rgba(124,58,237,.2);   color: #a78bfa; }
+    .type-ram    { background: rgba(16,185,129,.15);  color: var(--green); }
+    .type-ssd    { background: rgba(245,158,11,.15);  color: var(--yellow); }
+    .type-mobo   { background: rgba(249,115,22,.15);  color: var(--orange); }
+    .type-psu    { background: rgba(239,68,68,.12);   color: var(--red); }
+    .type-case   { background: rgba(148,163,184,.12); color: #94a3b8; }
+    .type-cooler { background: rgba(56,189,248,.15);  color: #38bdf8; }
+    .type-other  { background: rgba(100,116,139,.15); color: #64748b; }
+
+    @media (max-width: 700px) { .sidebar { display: none; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    Hard<span>Bot</span>
+    <span class="logo-powered">powered by Groq</span>
+  </div>
+  <div class="header-right">
+    <span class="model-badge" id="model-badge">llama-3.3-70b</span>
+    <button class="btn-icon" onclick="exportChat()" title="Exportar conversa">📤</button>
+    <button class="btn-icon" onclick="openSettings()" title="Preferências">⚙️</button>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+    <div class="sidebar-scroll">
+
+      <div class="section-label">💰 Orçamento</div>
+      <div class="config-card">
+        <label>Valor máximo</label>
+        <div class="budget-row">
+          <select id="currency" style="width:80px;flex-shrink:0">
+            <option>R$</option><option>USD</option><option>EUR</option><option>ARS</option>
+          </select>
+          <input type="number" id="budget" placeholder="Ex: 3000" min="0" />
+        </div>
+      </div>
+
+      <div class="section-label">🎯 Preferências</div>
+      <div class="config-card">
+        <label>Finalidade principal</label>
+        <select id="usecase">
+          <option value="">Selecionar...</option>
+          <option>Games</option><option>IA Local / LLM</option>
+          <option>Produtividade</option><option>Programação</option>
+          <option>Workstation</option><option>Edição de Vídeo</option>
+          <option>Streaming</option><option>Uso Geral</option>
+          <option>Trading</option><option>Automação</option>
+        </select>
+      </div>
+      <div class="config-card">
+        <label>Região / País</label>
+        <select id="region">
+          <option value="">Selecionar...</option>
+          <option>Brasil</option><option>Estados Unidos</option>
+          <option>Europa</option><option>Argentina</option><option>Outro</option>
+        </select>
+      </div>
+      <div class="config-card">
+        <label>Prioridade</label>
+        <select id="priority">
+          <option value="custo-benefício">Custo-benefício</option>
+          <option value="desempenho">Máximo Desempenho</option>
+          <option value="economia">Economia / Budget</option>
+          <option value="silencioso">Silencioso</option>
+          <option value="estética">Estética / RGB</option>
+          <option value="consumo">Baixo Consumo</option>
+        </select>
+      </div>
+
+      <div class="section-label">🔧 Lista de Hardware</div>
+      <div id="hw-list" class="hw-list"></div>
+      <div class="add-hw-form">
+        <select id="hw-type">
+          <option value="cpu">CPU — Processador</option>
+          <option value="gpu">GPU — Placa de Vídeo</option>
+          <option value="ram">RAM — Memória</option>
+          <option value="ssd">SSD / HD</option>
+          <option value="mobo">Placa-mãe</option>
+          <option value="psu">Fonte (PSU)</option>
+          <option value="case">Gabinete</option>
+          <option value="cooler">Cooler / Refrigeração</option>
+          <option value="other">Outro / Periférico</option>
+        </select>
+        <input type="text" id="hw-name" placeholder="Nome / Modelo (ex: RTX 4070 Ti)" />
+        <div class="toggle-row">
+          <button class="toggle-btn active-wanted" id="toggle-wanted" onclick="setHwStatus('wanted')">🛒 Quero Comprar</button>
+          <button class="toggle-btn" id="toggle-owned" onclick="setHwStatus('owned')">✅ Já Possuo</button>
+        </div>
+        <button class="btn-add" onclick="addHardware()">+ Adicionar à Lista</button>
+      </div>
+
+      <div class="section-label">⚡ Ações Rápidas</div>
+      <div class="quick-actions">
+        <button class="qa-btn" onclick="quickAction('compatibilidade')"><span class="qa-icon">🔗</span>Verificar Compatibilidade</button>
+        <button class="qa-btn" onclick="quickAction('precos')"><span class="qa-icon">💲</span>Buscar Melhores Preços</button>
+        <button class="qa-btn" onclick="quickAction('benchmark')"><span class="qa-icon">📊</span>Comparar Benchmarks</button>
+        <button class="qa-btn" onclick="quickAction('build')"><span class="qa-icon">🖥️</span>Sugerir Build Completa</button>
+        <button class="qa-btn" onclick="quickAction('cupons')"><span class="qa-icon">🎟️</span>Buscar Cupons</button>
+        <button class="qa-btn" onclick="quickAction('gargalos')"><span class="qa-icon">⚠️</span>Analisar Gargalos</button>
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn-new-chat" onclick="newChat()">+ Nova Consulta</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="context-bar">
+      <span style="color:var(--txt3);font-size:11px">Contexto ativo:</span>
+      <span id="ctx-budget"  class="ctx-tag budget"  style="display:none">💰 —</span>
+      <span id="ctx-usecase" class="ctx-tag usecase" style="display:none">🎯 —</span>
+      <span id="ctx-region"  class="ctx-tag region"  style="display:none">📍 —</span>
+      <span id="ctx-parts"   class="ctx-tag parts"   style="display:none">🔧 0 peças</span>
+      <span id="ctx-empty"   style="color:var(--txt3);font-size:11px">Nenhum contexto definido — preencha as preferências na sidebar</span>
+    </div>
+
+    <div class="messages" id="messages">
+      <div class="welcome" id="welcome-screen">
+        <div class="welcome-icon">⚡</div>
+        <h2>HardBot — Especialista em Hardware</h2>
+        <p>Consultor técnico de hardware com foco em custo-benefício, compatibilidade, melhores preços e configurações otimizadas para games, IA local, workstations e muito mais.</p>
+        <div class="groq-badge">⚡ Powered by Groq — Llama 3.3 70B — Gratuito</div>
+        <div class="welcome-chips">
+          <button class="w-chip" onclick="sendChip('Quero montar um PC gamer com R$ 4.000. Me ajude a escolher os componentes.')">🎮 PC Gamer R$ 4k</button>
+          <button class="w-chip" onclick="sendChip('Quero rodar modelos de IA local como Llama 3 e Mistral. Que hardware preciso?')">🤖 PC para IA Local</button>
+          <button class="w-chip" onclick="sendChip('Verifique a compatibilidade entre os componentes na minha lista.')">🔗 Verificar Compatibilidade</button>
+          <button class="w-chip" onclick="sendChip('Qual a diferença entre RTX 4070 e RX 7800 XT? Vale a diferença de preço?')">📊 Comparar GPUs</button>
+          <button class="w-chip" onclick="sendChip('Quais são os melhores SSDs NVMe custo-benefício em 2025?')">💾 Melhores SSDs</button>
+          <button class="w-chip" onclick="sendChip('Meu PC está lento. Qual o upgrade mais impactante com R$ 800?')">🔧 Upgrade Inteligente</button>
+          <button class="w-chip" onclick="sendChip('Busque cupons e promoções para os itens da minha lista de hardware.')">🎟️ Cupons e Promoções</button>
+          <button class="w-chip" onclick="sendChip('Monte a melhor workstation para edição de vídeo 4K com até R$ 8.000.')">🎬 Workstation 4K</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="input-bar">
+      <div class="input-outer">
+        <textarea id="chat-input" placeholder="Pergunte sobre hardware, preços, compatibilidade, benchmarks..." rows="1"
+          onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
+        <button class="btn-send" id="btn-send" onclick="sendMessage()">➤</button>
+      </div>
+      <div class="input-hint">Enter para enviar · Shift+Enter para nova linha</div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal só de preferências — sem campo de chave API -->
+<div class="modal-overlay" id="settings-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>⚙️ Preferências do Modelo</h3>
+      <button class="modal-close" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="modal-field">
+      <label>Modelo de IA</label>
+      <select id="model-select">
+        <option value="llama-3.3-70b-versatile">Llama 3.3 70B — Melhor qualidade</option>
+        <option value="llama-3.1-8b-instant">Llama 3.1 8B — Mais rápido</option>
+        <option value="mixtral-8x7b-32768">Mixtral 8x7B — Equilibrado</option>
+        <option value="gemma2-9b-it">Gemma 2 9B — Google</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Tamanho máximo da resposta</label>
+      <select id="max-tokens">
+        <option value="2048">2048 — Respostas médias</option>
+        <option value="4096" selected>4096 — Respostas detalhadas</option>
+        <option value="8192">8192 — Análises completas</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <label>Temperatura (criatividade)</label>
+      <select id="temperature">
+        <option value="0.2">0.2 — Preciso e conservador</option>
+        <option value="0.5" selected>0.5 — Balanceado</option>
+        <option value="0.7">0.7 — Mais criativo</option>
+      </select>
+    </div>
+    <button class="modal-save" onclick="saveSettings()">💾 Salvar</button>
+  </div>
+</div>
+
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────
+let messages  = [];
+let hwList    = [];
+let hwStatus  = 'wanted';
+let isLoading = false;
+
+// ── Chama a função Netlify (a chave fica no servidor) ─────────────
+const API_ENDPOINT = '/.netlify/functions/chat';
+
+const SYSTEM_PROMPT = `Você é um Agente Especialista em Pesquisa de Hardware, Computadores, Setup Gamer, Workstations, IA Local, Upgrade de PCs, Compatibilidade de Componentes e Busca de Cupons Válidos.
+
+Seu objetivo é ajudar usuários a encontrar: computadores completos, notebooks, componentes de hardware, periféricos, melhores preços, melhor custo-benefício, compatibilidade entre peças, configurações ideais, cupons válidos e promoções reais, comparativos detalhados, avaliações técnicas, consumo energético, temperaturas, gargalos, benchmarks, e compatibilidade para IA local, automação, programação, trading e games.
+
+Você deve agir como: consultor técnico sênior, analista de hardware, especialista em custo-benefício, pesquisador de mercado, caçador de promoções, e especialista em montagem e upgrade de PCs.
+
+## OBJETIVOS PRINCIPAIS
+1. Encontrar os melhores produtos conforme: orçamento, finalidade, desempenho, longevidade, eficiência energética, refrigeração e possibilidade de upgrade.
+2. Fazer comparativos inteligentes entre: processadores, GPUs, SSDs, placas-mãe, memórias RAM, gabinetes, fontes, notebooks e PCs montados.
+3. Validar: compatibilidade, BIOS, chipset, socket, geração, consumo, tamanho físico, conectores e airflow.
+4. Pesquisar: cupons válidos, cashback, promoções, bundles, ofertas relâmpago.
+5. Explicar: vantagens, desvantagens, gargalos, upgrades futuros, riscos de compra.
+6. Sempre entregar: análise técnica, análise prática e análise financeira.
+
+## COMPORTAMENTO
+Responder de forma técnica porém fácil de entender. Adaptar o nível técnico ao usuário. Explicar termos complexos. Evitar respostas genéricas. Sempre justificar recomendações. Priorizar custo-benefício quando não especificado. Informar riscos de incompatibilidade. Alertar sobre marketing enganoso.
+
+NUNCA: inventar benchmarks, inventar cupons, inventar compatibilidade, inventar preços, ignorar limitações térmicas, ignorar consumo energético, recomendar fontes genéricas, recomendar hardware sem verificar compatibilidade.
+
+## FORMATO DAS RESPOSTAS
+Quando aplicável, estruturar com:
+# OBJETIVO IDENTIFICADO
+# MELHORES OPÇÕES (Opção 1 — custo-benefício, Opção 2 — desempenho)
+# COMPARATIVO TÉCNICO (tabela markdown)
+# COMPATIBILIDADE
+# RECOMENDAÇÃO FINAL
+# ALERTAS IMPORTANTES
+
+Responda SEMPRE em português brasileiro (pt-BR).`;
+
+const TYPE_INFO = {
+  cpu:{label:'CPU',cls:'type-cpu'}, gpu:{label:'GPU',cls:'type-gpu'},
+  ram:{label:'RAM',cls:'type-ram'}, ssd:{label:'SSD',cls:'type-ssd'},
+  mobo:{label:'MOBO',cls:'type-mobo'}, psu:{label:'PSU',cls:'type-psu'},
+  case:{label:'CASE',cls:'type-case'}, cooler:{label:'COOLER',cls:'type-cooler'},
+  other:{label:'OUTRO',cls:'type-other'},
+};
+
+function init() {
+  loadState();
+  renderHwList();
+  updateContextBar();
+  updateModelBadge();
+}
+
+function saveState() {
+  localStorage.setItem('hb_hwlist',   JSON.stringify(hwList));
+  localStorage.setItem('hb_budget',   document.getElementById('budget').value);
+  localStorage.setItem('hb_currency', document.getElementById('currency').value);
+  localStorage.setItem('hb_usecase',  document.getElementById('usecase').value);
+  localStorage.setItem('hb_region',   document.getElementById('region').value);
+  localStorage.setItem('hb_priority', document.getElementById('priority').value);
+}
+
+function loadState() {
+  try { const hw = localStorage.getItem('hb_hwlist'); if (hw) hwList = JSON.parse(hw); } catch {}
+  ['budget','currency','usecase','region','priority'].forEach(id => {
+    const v = localStorage.getItem('hb_' + id);
+    if (v) document.getElementById(id).value = v;
+    document.getElementById(id).addEventListener('change', () => { saveState(); updateContextBar(); });
+  });
+  document.getElementById('budget').addEventListener('input', () => { saveState(); updateContextBar(); });
+}
+
+function setHwStatus(s) {
+  hwStatus = s;
+  document.getElementById('toggle-wanted').className = 'toggle-btn' + (s==='wanted' ? ' active-wanted' : '');
+  document.getElementById('toggle-owned').className  = 'toggle-btn' + (s==='owned'  ? ' active-owned'  : '');
+}
+
+function addHardware() {
+  const type = document.getElementById('hw-type').value;
+  const name = document.getElementById('hw-name').value.trim();
+  if (!name) { toast('Digite o nome do componente', 'warning'); return; }
+  hwList.push({ id: Date.now(), type, name, status: hwStatus });
+  document.getElementById('hw-name').value = '';
+  renderHwList(); updateContextBar(); saveState();
+  toast('Componente adicionado!', 'success');
+}
+
+function removeHardware(id) {
+  hwList = hwList.filter(h => h.id !== id);
+  renderHwList(); updateContextBar(); saveState();
+}
+
+function renderHwList() {
+  const el = document.getElementById('hw-list');
+  if (!hwList.length) {
+    el.innerHTML = '<div style="text-align:center;padding:12px;color:var(--txt3);font-size:12px">Nenhum componente na lista.<br>Adicione abaixo para análise contextual.</div>';
+    return;
+  }
+  el.innerHTML = hwList.map(h => {
+    const info = TYPE_INFO[h.type] || TYPE_INFO.other;
+    return `<div class="hw-item ${h.status}">
+      <span class="hw-type-badge ${info.cls}">${info.label}</span>
+      <span class="hw-name" title="${escHtml(h.name)}">${escHtml(h.name)}</span>
+      <button class="hw-remove" onclick="removeHardware(${h.id})">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function updateContextBar() {
+  const budget = document.getElementById('budget').value;
+  const currency = document.getElementById('currency').value;
+  const usecase = document.getElementById('usecase').value;
+  const region  = document.getElementById('region').value;
+  let hasCtx = false;
+
+  const show = (id, txt) => { document.getElementById(id).textContent = txt; document.getElementById(id).style.display = ''; };
+  const hide = (id) => document.getElementById(id).style.display = 'none';
+
+  if (budget)  { show('ctx-budget',  `💰 ${currency} ${Number(budget).toLocaleString('pt-BR')}`); hasCtx = true; } else hide('ctx-budget');
+  if (usecase) { show('ctx-usecase', `🎯 ${usecase}`); hasCtx = true; } else hide('ctx-usecase');
+  if (region)  { show('ctx-region',  `📍 ${region}`);  hasCtx = true; } else hide('ctx-region');
+  if (hwList.length) {
+    const o = hwList.filter(h=>h.status==='owned').length, w = hwList.filter(h=>h.status==='wanted').length;
+    let txt = `🔧 ${hwList.length} peça${hwList.length>1?'s':''}`;
+    if (o) txt += ` (${o} possui)`; if (w) txt += ` (${w} quer)`;
+    show('ctx-parts', txt); hasCtx = true;
+  } else hide('ctx-parts');
+
+  document.getElementById('ctx-empty').style.display = hasCtx ? 'none' : '';
+}
+
+function buildContextBlock() {
+  const budget = document.getElementById('budget').value;
+  const currency = document.getElementById('currency').value;
+  const usecase = document.getElementById('usecase').value;
+  const region  = document.getElementById('region').value;
+  const priority = document.getElementById('priority').value;
+  if (!budget && !usecase && !region && !hwList.length) return '';
+
+  let ctx = '\n\n---\n**CONTEXTO DO USUÁRIO:**\n';
+  if (budget)   ctx += `- Orçamento: ${currency} ${budget}\n`;
+  if (usecase)  ctx += `- Finalidade: ${usecase}\n`;
+  if (region)   ctx += `- Região: ${region}\n`;
+  if (priority) ctx += `- Prioridade: ${priority}\n`;
+  if (hwList.length) {
+    const owned  = hwList.filter(h=>h.status==='owned');
+    const wanted = hwList.filter(h=>h.status==='wanted');
+    ctx += '\n**Lista de Hardware:**\n';
+    if (owned.length)  { ctx += '\nJá possuo:\n';       owned.forEach(h  => { ctx += `- ${TYPE_INFO[h.type]?.label||h.type}: ${h.name}\n`; }); }
+    if (wanted.length) { ctx += '\nQuero comprar:\n';   wanted.forEach(h => { ctx += `- ${TYPE_INFO[h.type]?.label||h.type}: ${h.name}\n`; }); }
+  }
+  ctx += '---\n';
+  return ctx;
+}
+
+function quickAction(action) {
+  const budget = document.getElementById('budget').value;
+  const currency = document.getElementById('currency').value;
+  const usecase  = document.getElementById('usecase').value;
+  const prompts = {
+    compatibilidade: 'Verifique detalhadamente a compatibilidade entre todos os componentes da minha lista de hardware. Informe sobre socket, chipset, geração de memória, consumo total e qualquer problema de incompatibilidade.',
+    precos: 'Pesquise e compare os melhores preços para os componentes da minha lista. Indique onde encontrar cada peça mais barata, possíveis economias e o melhor momento para comprar.',
+    benchmark: 'Faça um comparativo técnico detalhado dos componentes da minha lista. Mostre benchmarks, desempenho esperado na finalidade desejada e se as escolhas são adequadas.',
+    build: `Monte uma build completa ${budget?'com orçamento de '+currency+' '+budget:'com melhor custo-benefício'} para ${usecase||'uso geral'}. Inclua todos os componentes necessários com análise completa.`,
+    cupons: 'Busque cupons, cashback, promoções e ofertas relâmpago para os produtos da minha lista ou similares. Valide os cupons e informe as regras de uso.',
+    gargalos: 'Analise possíveis gargalos na minha lista de hardware. Identifique onde o desempenho será limitado e como otimizar a relação custo-desempenho.',
+  };
+  if (prompts[action]) { document.getElementById('chat-input').value = prompts[action]; sendMessage(); }
+}
+
+function sendChip(msg) { document.getElementById('chat-input').value = msg; sendMessage(); }
+
+function handleKey(e) { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }
+
+function autoResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 120) + 'px'; }
+
+async function sendMessage() {
+  if (isLoading) return;
+  const input = document.getElementById('chat-input');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  const welcome = document.getElementById('welcome-screen');
+  if (welcome) welcome.remove();
+
+  messages.push({ role: 'user', content: text + buildContextBlock() });
+  appendMessage('user', text);
+  input.value = ''; input.style.height = 'auto';
+  setLoading(true);
+
+  try {
+    const model   = localStorage.getItem('hb_model')        || 'llama-3.3-70b-versatile';
+    const maxTok  = parseInt(localStorage.getItem('hb_max_tokens')  || '4096');
+    const tempVal = parseFloat(localStorage.getItem('hb_temperature') || '0.5');
+
+    // Chama a função Netlify — sem expor chave ao usuário
+    const resp = await fetch(API_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...messages],
+        max_tokens: maxTok,
+        temperature: tempVal,
+      }),
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err?.error?.message || `HTTP ${resp.status}`);
+    }
+
+    const data  = await resp.json();
+    const reply = data.choices?.[0]?.message?.content || '(sem resposta)';
+
+    messages.push({ role: 'assistant', content: reply });
+    setLoading(false);
+    appendMessage('assistant', reply);
+
+  } catch (err) {
+    setLoading(false);
+    messages.pop();
+    const msg = err.message || '';
+    if (msg.includes('429') || msg.includes('rate_limit')) {
+      toast('Limite de requisições atingido. Aguarde um momento.', 'warning');
+    } else if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+      toast('Erro de conexão. Verifique sua internet.', 'error');
+    } else {
+      toast('Erro: ' + msg, 'error');
+    }
+  }
+}
+
+function appendMessage(role, content) {
+  const container = document.getElementById('messages');
+  const wrapper = document.createElement('div');
+  wrapper.className = `msg ${role}`;
+  const avatar = document.createElement('div');
+  avatar.className = 'msg-avatar';
+  avatar.textContent = role === 'assistant' ? '⚡' : '👤';
+  const body   = document.createElement('div'); body.className = 'msg-body';
+  const bubble = document.createElement('div'); bubble.className = 'msg-bubble';
+  bubble.innerHTML = renderMarkdown(content);
+  const time = document.createElement('div'); time.className = 'msg-time';
+  time.textContent = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  body.appendChild(bubble); body.appendChild(time);
+  wrapper.appendChild(avatar); wrapper.appendChild(body);
+  container.appendChild(wrapper);
+  container.scrollTop = container.scrollHeight;
+}
+
+function setLoading(state) {
+  isLoading = state;
+  document.getElementById('btn-send').disabled = state;
+  const container = document.getElementById('messages');
+  if (state) {
+    const w = document.createElement('div');
+    w.className = 'msg assistant'; w.id = 'typing-indicator';
+    w.innerHTML = '<div class="msg-avatar">⚡</div><div class="msg-body"><div class="typing"><span></span><span></span><span></span></div></div>';
+    container.appendChild(w); container.scrollTop = container.scrollHeight;
+  } else {
+    const t = document.getElementById('typing-indicator'); if (t) t.remove();
+  }
+}
+
+function renderMarkdown(text) {
+  let html = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, (_,l,c) => `<pre><code>${c.trim()}</code></pre>`);
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/^### (.+)$/gm,'<h3>$1</h3>');
+  html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+  html = html.replace(/^# (.+)$/gm,  '<h1>$1</h1>');
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g,'<strong><em>$1</em></strong>');
+  html = html.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+  html = html.replace(/\*(.+?)\*/g,'<em>$1</em>');
+  html = html.replace(/^&gt; (.+)$/gm,'<blockquote>$1</blockquote>');
+  html = html.replace(/^---+$/gm,'<hr>');
+  html = html.replace(/(\|.+\|\n)+/g, match => {
+    const rows = match.trim().split('\n');
+    if (rows.length < 2) return match;
+    const hCells = rows[0].split('|').filter(c=>c.trim());
+    const isTbl  = rows[1] && /^\|[\s\-:]+\|/.test(rows[1]);
+    let t = '<table>';
+    if (isTbl) {
+      t += '<thead><tr>' + hCells.map(c=>`<th>${c.trim()}</th>`).join('') + '</tr></thead><tbody>';
+      for (let i=2;i<rows.length;i++) { const cells=rows[i].split('|').filter(c=>c.trim()); t += '<tr>'+cells.map(c=>`<td>${c.trim()}</td>`).join('')+'</tr>'; }
+      t += '</tbody>';
+    } else {
+      t += '<tbody>'; rows.forEach(r => { const cells=r.split('|').filter(c=>c.trim()); t+='<tr>'+cells.map(c=>`<td>${c.trim()}</td>`).join('')+'</tr>'; }); t += '</tbody>';
+    }
+    return t + '</table>';
+  });
+  html = html.replace(/(^[-*+] .+\n?)+/gm, m => '<ul>'+m.trim().split('\n').map(l=>`<li>${l.replace(/^[-*+] /,'')}</li>`).join('')+'</ul>');
+  html = html.replace(/(^\d+\. .+\n?)+/gm, m => '<ol>'+m.trim().split('\n').map(l=>`<li>${l.replace(/^\d+\. /,'')}</li>`).join('')+'</ol>');
+  html = html.replace(/^(?!<[houbtpclo])(.+)$/gm,'<p>$1</p>');
+  return html;
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function newChat() {
+  messages = [];
+  document.getElementById('messages').innerHTML = `
+    <div class="welcome" id="welcome-screen">
+      <div class="welcome-icon">⚡</div>
+      <h2>HardBot — Especialista em Hardware</h2>
+      <p>Consultor técnico de hardware com foco em custo-benefício, compatibilidade, melhores preços e configurações otimizadas.</p>
+      <div class="groq-badge">⚡ Powered by Groq — Llama 3.3 70B — Gratuito</div>
+      <div class="welcome-chips">
+        <button class="w-chip" onclick="sendChip('Quero montar um PC gamer com R\$ 4.000.')">🎮 PC Gamer R$ 4k</button>
+        <button class="w-chip" onclick="sendChip('Quero rodar modelos de IA local. Que hardware preciso?')">🤖 PC para IA Local</button>
+        <button class="w-chip" onclick="sendChip('Verifique a compatibilidade entre os componentes da minha lista.')">🔗 Verificar Compatibilidade</button>
+        <button class="w-chip" onclick="sendChip('Qual a diferença entre RTX 4070 e RX 7800 XT?')">📊 Comparar GPUs</button>
+        <button class="w-chip" onclick="sendChip('Quais são os melhores SSDs NVMe custo-benefício em 2025?')">💾 Melhores SSDs</button>
+        <button class="w-chip" onclick="sendChip('Meu PC está lento. Qual o upgrade mais impactante com R\$ 800?')">🔧 Upgrade Inteligente</button>
+      </div>
+    </div>`;
+}
+
+function exportChat() {
+  if (!messages.length) { toast('Nenhuma conversa para exportar','info'); return; }
+  let txt = `# HardBot — Conversa\nData: ${new Date().toLocaleString('pt-BR')}\n\n`;
+  messages.forEach(m => {
+    const role = m.role==='user' ? '**Usuário**' : '**HardBot**';
+    const content = m.content.replace(/\n\n---\n\*\*CONTEXTO[\s\S]*?---\n/,'').trim();
+    txt += `### ${role}\n${content}\n\n---\n\n`;
+  });
+  const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(new Blob([txt],{type:'text/markdown'})), download: `hardbot-${Date.now()}.md` });
+  a.click(); toast('Conversa exportada!','success');
+}
+
+function openSettings() {
+  document.getElementById('model-select').value = localStorage.getItem('hb_model')        || 'llama-3.3-70b-versatile';
+  document.getElementById('max-tokens').value   = localStorage.getItem('hb_max_tokens')   || '4096';
+  document.getElementById('temperature').value  = localStorage.getItem('hb_temperature')  || '0.5';
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function closeSettings() { document.getElementById('settings-modal').classList.remove('open'); }
+
+function saveSettings() {
+  localStorage.setItem('hb_model',       document.getElementById('model-select').value);
+  localStorage.setItem('hb_max_tokens',  document.getElementById('max-tokens').value);
+  localStorage.setItem('hb_temperature', document.getElementById('temperature').value);
+  updateModelBadge(); closeSettings();
+  toast('Preferências salvas!','success');
+}
+
+function updateModelBadge() {
+  const m = localStorage.getItem('hb_model') || 'llama-3.3-70b-versatile';
+  document.getElementById('model-badge').textContent = m.replace('-versatile','').replace('-instant','').replace('-32768','').replace('-it','');
+}
+
+document.getElementById('settings-modal').addEventListener('click', function(e) { if(e.target===this) closeSettings(); });
+
+function toast(msg, type='info') {
+  const icons={success:'✅',error:'❌',warning:'⚠️',info:'ℹ️'};
+  const el = document.createElement('div'); el.className=`toast ${type}`;
+  el.innerHTML=`${icons[type]||''} ${escHtml(msg)}`;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .4s'; }, 3200);
+  setTimeout(()=>el.remove(), 3600);
+}
+
+init();
+</script>
+</body>
+</html>
