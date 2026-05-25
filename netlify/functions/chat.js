@@ -5,8 +5,6 @@
 //    GROQ_API_KEY        → console.groq.com          (obrigatório)
 //    GOOGLE_SEARCH_KEY   → console.cloud.google.com  (grátis, sem cartão)
 //    GOOGLE_SEARCH_CX    → programmablesearchengine.google.com
-//
-//  Limite gratuito Google: 100 buscas/dia (~50 consultas de preço/dia)
 // ─────────────────────────────────────────────────────────────────
 
 const GROQ_URL   = 'https://api.groq.com/openai/v1/chat/completions';
@@ -16,15 +14,15 @@ const GOOGLE_URL = 'https://www.googleapis.com/customsearch/v1';
 const PRICE_WORDS = [
   'preço','preços','valor','custo','quanto custa','mais barato',
   'menor preço','melhor preço','comprar','onde comprar','loja',
-  'onde encontrar','cotação','link','encontrar','pesquisar',
-  'buscar preço','verificar preço','busque','pesquise','compra online',
+  'onde encontrar','cotação','link','links','me dê o link',
+  'me da o link','encontrar','pesquisar','buscar','verificar preço',
+  'busque','pesquise','compra','compra online','url','site',
 ];
 
 // ── Palavras que disparam busca de cupons ────────────────────────
 const COUPON_WORDS = [
   'cupom','cupons','desconto','descontos','promoção','promoções',
   'oferta','ofertas','cashback','código promocional','voucher','promo',
-  'código desconto',
 ];
 
 // ─────────────────────────────────────────────────────────────────
@@ -52,38 +50,44 @@ exports.handler = async (event) => {
   try {
     const { model, messages, max_tokens, temperature } = JSON.parse(event.body);
 
-    // ── Última mensagem do usuário (sem bloco de contexto) ───────
+    // ── Última mensagem do usuário ───────────────────────────────
     const lastUserMsg = [...messages].reverse().find(m => m.role === 'user')?.content || '';
-    const cleanQuery  = lastUserMsg.replace(/\n\n---[\s\S]*?---\n/g, '').trim();
-    const lower       = cleanQuery.toLowerCase();
+    const cleanCurrent = lastUserMsg.replace(/\n\n---[\s\S]*?---\n/g, '').trim();
+    const lower = cleanCurrent.toLowerCase();
 
     const needsPrice  = PRICE_WORDS.some(w  => lower.includes(w));
     const needsCoupon = COUPON_WORDS.some(w => lower.includes(w));
     const canSearch   = (needsPrice || needsCoupon) && googleKey && googleCx;
 
-    // ── Buscas em paralelo (máx. 2 calls para economizar cota) ───
+    // ── Monta query usando contexto da conversa ──────────────────
     let searchContext = '';
 
     if (canSearch) {
-      const short = cleanQuery.substring(0, 150);
-      const jobs  = [];
+      // Se mensagem atual é curta/vaga (ex: "me dê o link"), usa contexto anterior
+      const queryBase = cleanCurrent.length < 60
+        ? extractContextFromHistory(messages, cleanCurrent)
+        : cleanCurrent.substring(0, 160);
+
+      const jobs = [];
 
       if (needsPrice) {
-        // Uma query que cobre as principais lojas BR de hardware
-        const priceQuery =
-          `${short} preço site:kabum.com.br OR site:pichau.com.br ` +
+        // Busca direta nas lojas BR — inclui "comprar" para pegar páginas de produto
+        const q1 =
+          `${queryBase} comprar site:kabum.com.br OR site:pichau.com.br ` +
           `OR site:terabyteshop.com.br OR site:amazon.com.br ` +
-          `OR site:magalu.com.br OR site:americanas.com.br 2025`;
-        jobs.push(googleSearch(priceQuery, googleKey, googleCx));
+          `OR site:magalu.com.br OR site:americanas.com.br`;
+        jobs.push(googleSearch(q1, googleKey, googleCx));
+
+        // Segunda busca: menor preço + comparação
+        const q2 = `${queryBase} menor preço Brasil 2025 link comprar`;
+        jobs.push(googleSearch(q2, googleKey, googleCx));
       }
 
       if (needsCoupon) {
-        // Query focada em sites de cupons brasileiros
-        const couponQuery =
-          `cupom desconto ${short} site:promobit.com.br OR ` +
-          `site:cuponomia.com.br OR site:meliuz.com.br OR ` +
-          `site:ociocriativo.com.br 2025`;
-        jobs.push(googleSearch(couponQuery, googleKey, googleCx));
+        const q3 =
+          `cupom desconto ${queryBase} site:promobit.com.br OR ` +
+          `site:cuponomia.com.br OR site:meliuz.com.br 2025`;
+        jobs.push(googleSearch(q3, googleKey, googleCx));
       }
 
       const settled = await Promise.allSettled(jobs);
@@ -91,7 +95,7 @@ exports.handler = async (event) => {
         .filter(r => r.status === 'fulfilled')
         .flatMap(r => r.value);
 
-      // Remove duplicatas
+      // Remove duplicatas por URL
       const seen   = new Set();
       const unique = allResults.filter(r => {
         if (!r.url || seen.has(r.url)) return false;
@@ -101,6 +105,10 @@ exports.handler = async (event) => {
 
       if (unique.length > 0) {
         searchContext = buildContext(unique, needsPrice, needsCoupon);
+      } else if (googleKey && googleCx) {
+        // Busca não retornou resultados — informa o LLM
+        searchContext = '\n\n[BUSCA REALIZADA MAS SEM RESULTADOS DIRETOS DE LOJAS. ' +
+          'Oriente o usuário a pesquisar nas lojas mencionadas.]\n';
       }
     }
 
@@ -144,6 +152,52 @@ exports.handler = async (event) => {
 };
 
 // ─────────────────────────────────────────────────────────────────
+//  Extrai contexto de produto das mensagens anteriores
+//  Usado quando a mensagem atual é curta (ex: "me dê o link")
+// ─────────────────────────────────────────────────────────────────
+function extractContextFromHistory(messages, currentMsg) {
+  // Pega as últimas 6 mensagens e extrai nomes de produtos
+  const recent = messages
+    .slice(-6)
+    .map(m => m.content
+      .replace(/\n\n---[\s\S]*?---\n/g, '')       // remove bloco de contexto
+      .replace(/[═]{2,}[\s\S]*?[═]{2,}/g, '')     // remove bloco de busca
+      .trim()
+    )
+    .join(' ');
+
+  // Padrões comuns de produtos de hardware
+  const hardwarePatterns = [
+    /\b(RTX|RX|GTX)\s*\d{3,4}[A-Z\s]*/gi,
+    /\b(Ryzen|Core i\d|Intel|AMD)\s*[\w\s-]*/gi,
+    /\b(DDR[45]|NVMe|SSD|RAM|M\.2)\s*[\w\s]*/gi,
+    /\b[\w\s]*(GB|TB|MHz|GHz)\b/gi,
+  ];
+
+  let productName = '';
+  for (const pattern of hardwarePatterns) {
+    const match = recent.match(pattern);
+    if (match && match[0]) {
+      productName = match[0].trim().substring(0, 60);
+      break;
+    }
+  }
+
+  // Se não achou padrão, usa as últimas palavras significativas do histórico
+  if (!productName) {
+    productName = recent
+      .replace(/[^a-zA-Z0-9À-ÿ\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 3)
+      .slice(-12)
+      .join(' ')
+      .substring(0, 120);
+  }
+
+  return `${productName} ${currentMsg}`.trim().substring(0, 160);
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  Google Custom Search
 // ─────────────────────────────────────────────────────────────────
 async function googleSearch(query, key, cx) {
@@ -152,10 +206,10 @@ async function googleSearch(query, key, cx) {
       key,
       cx,
       q:           query,
-      gl:          'br',   // geolocalização Brasil
-      hl:          'pt',   // idioma português
-      num:         '8',    // 8 resultados por busca
-      dateRestrict:'m3',   // últimos 3 meses (preços mais recentes)
+      gl:          'br',
+      hl:          'pt',
+      num:         '8',
+      dateRestrict:'m3',
     });
 
     const resp = await fetch(`${GOOGLE_URL}?${params}`);
@@ -164,10 +218,10 @@ async function googleSearch(query, key, cx) {
     const data = await resp.json();
 
     return (data.items || []).map(item => ({
-      title:       item.title        || '',
-      url:         item.link         || '',
-      description: item.snippet      || '',
-      displayUrl:  item.displayLink  || '',
+      title:      item.title       || '',
+      url:        item.link        || '',
+      description:item.snippet     || '',
+      displayUrl: item.displayLink || '',
     }));
   } catch {
     return [];
@@ -175,7 +229,7 @@ async function googleSearch(query, key, cx) {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  Formata resultados para o LLM
+//  Formata resultados para injetar no contexto do LLM
 // ─────────────────────────────────────────────────────────────────
 function buildContext(results, isPrice, isCoupon) {
   const today = new Date().toLocaleString('pt-BR', {
@@ -184,58 +238,53 @@ function buildContext(results, isPrice, isCoupon) {
   });
 
   const STORE_DOMAINS  = ['kabum','pichau','terabyte','amazon','magalu','americanas','shopee','submarino'];
-  const COUPON_DOMAINS = ['promobit','cuponomia','meliuz','cupom','desconto','cashback','promo','ociocriativo'];
+  const COUPON_DOMAINS = ['promobit','cuponomia','meliuz','cupom','desconto','cashback','ociocriativo'];
 
   const storeResults  = results.filter(r => STORE_DOMAINS.some(d  => r.url.includes(d)));
   const couponResults = results.filter(r => COUPON_DOMAINS.some(d => r.url.includes(d)));
   const otherResults  = results.filter(r => !storeResults.includes(r) && !couponResults.includes(r));
 
   let ctx = `\n\n${'═'.repeat(52)}\n`;
-  ctx += `🔍 BUSCA GOOGLE EM TEMPO REAL — ${today}\n`;
+  ctx += `🔍 RESULTADOS REAIS DO GOOGLE — ${today}\n`;
   ctx += `${'═'.repeat(52)}\n\n`;
 
-  // Resultados de lojas
   if (isPrice && storeResults.length > 0) {
-    ctx += `🛒 PRODUTOS NAS LOJAS (Google):\n\n`;
+    ctx += `🛒 PÁGINAS DE PRODUTO NAS LOJAS:\n\n`;
     storeResults.forEach((r, i) => {
-      ctx += `${i + 1}. ${r.title}\n`;
-      ctx += `   💰 URL DIRETO: ${r.url}\n`;
-      ctx += `   📋 ${r.description.substring(0, 200)}\n\n`;
+      ctx += `${i + 1}. TÍTULO: ${r.title}\n`;
+      ctx += `   LINK DIRETO: ${r.url}\n`;
+      ctx += `   INFO: ${r.description.substring(0, 220)}\n\n`;
     });
   }
 
-  // Outros resultados de preço
   if (isPrice && otherResults.length > 0) {
-    ctx += `🔎 MAIS RESULTADOS DE PREÇO:\n\n`;
+    ctx += `🔎 MAIS RESULTADOS:\n\n`;
     otherResults.slice(0, 4).forEach((r, i) => {
-      ctx += `${i + 1}. ${r.title}\n`;
-      ctx += `   🔗 URL: ${r.url}\n`;
-      ctx += `   📋 ${r.description.substring(0, 160)}\n\n`;
+      ctx += `${i + 1}. TÍTULO: ${r.title}\n`;
+      ctx += `   LINK: ${r.url}\n`;
+      ctx += `   INFO: ${r.description.substring(0, 180)}\n\n`;
     });
   }
 
-  // Cupons
   if (isCoupon && couponResults.length > 0) {
-    ctx += `🎟️ CUPONS E PROMOÇÕES ENCONTRADOS:\n\n`;
+    ctx += `🎟️ CUPONS ENCONTRADOS:\n\n`;
     couponResults.forEach((r, i) => {
-      ctx += `${i + 1}. ${r.title}\n`;
-      ctx += `   🏷️ URL: ${r.url}\n`;
-      ctx += `   📋 ${r.description.substring(0, 200)}\n\n`;
+      ctx += `${i + 1}. TÍTULO: ${r.title}\n`;
+      ctx += `   LINK: ${r.url}\n`;
+      ctx += `   INFO: ${r.description.substring(0, 220)}\n\n`;
     });
   }
 
-  // Instruções para o LLM
   ctx += `${'═'.repeat(52)}\n`;
-  ctx += `📌 INSTRUÇÕES OBRIGATÓRIAS PARA O ASSISTENTE:\n`;
-  ctx += `1. USE os links acima — formate como [Texto](URL)\n`;
-  ctx += `2. Organize os preços do menor para o maior\n`;
-  ctx += `3. Destaque o MENOR PREÇO encontrado em negrito\n`;
-  ctx += `4. Se o snippet mencionar R$ X.XXX, cite esse valor\n`;
-  ctx += `5. Mostre o link direto de cada produto/loja encontrado\n`;
-  ctx += `6. Para cupons: informe o código, desconto e loja\n`;
-  ctx += `7. Adicione "🔍 Preços verificados via Google em tempo real"\n`;
-  ctx += `8. NUNCA invente preços que não estejam nestes dados\n`;
-  ctx += `9. Se não encontrou preço exato, diga qual loja tem o produto\n`;
+  ctx += `🚨 REGRAS OBRIGATÓRIAS — SEGUIR SEM EXCEÇÃO:\n\n`;
+  ctx += `1. COPIE os links EXATOS acima — não modifique as URLs\n`;
+  ctx += `2. Formate TODOS os links como: [nome da loja ou produto](URL_EXATA)\n`;
+  ctx += `3. NUNCA diga "não posso fornecer links" — você tem os links acima\n`;
+  ctx += `4. NUNCA invente URLs — use apenas as listadas acima\n`;
+  ctx += `5. Se o snippet mostrar "R$ X.XXX", cite esse valor com a loja\n`;
+  ctx += `6. Organize do menor para o maior preço quando possível\n`;
+  ctx += `7. Adicione o badge: 🔍 Preços verificados via Google em tempo real\n`;
+  ctx += `8. Para cupons: destaque o código, percentual e a loja\n`;
   ctx += `${'═'.repeat(52)}\n`;
 
   return ctx;
