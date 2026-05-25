@@ -66,23 +66,20 @@ exports.handler = async (event) => {
 
     if ((needsPrice || needsCoupon) && hasSearchKeys) {
 
-      // Se mensagem curta, usa contexto do histórico
-      const queryBase = cleanCurrent.length < 60
-        ? extractContext(messages, cleanCurrent)
-        : cleanCurrent.substring(0, 160);
+      // SEMPRE extrai o nome do produto — nunca envia a frase crua do usuário
+      const queryBase = extractProductName(messages, cleanCurrent);
 
       console.log('[HardBot] Query base:', queryBase);
 
       const jobs = [];
 
       if (needsPrice) {
-        // Query 1 — SIMPLES, sem site: para maximizar resultados
-        // Deixa o Google encontrar as melhores lojas naturalmente
-        const q1 = `${queryBase} preço brasil comprar 2025`;
+        // Query 1 — produto + preço
+        const q1 = `${queryBase} preço`;
         jobs.push(googleSearch(q1, googleKey, googleCx));
 
-        // Query 2 — Menciona lojas brasileiras conhecidas
-        const q2 = `${queryBase} kabum pichau terabyte amazon menor preço`;
+        // Query 2 — produto + comprar (captura páginas de produto)
+        const q2 = `${queryBase} comprar`;
         jobs.push(googleSearch(q2, googleKey, googleCx));
       }
 
@@ -171,7 +168,49 @@ exports.handler = async (event) => {
 };
 
 // ─────────────────────────────────────────────────────────────────
-//  Extrai contexto de produto do histórico da conversa
+//  Extrai APENAS o nome do produto (nunca envia a frase crua)
+//  Prioridade: mensagem atual → histórico → fallback curto
+// ─────────────────────────────────────────────────────────────────
+function extractProductName(messages, currentMsg) {
+  const patterns = [
+    /\b(RTX|RX|GTX|Arc)\s*\d{3,4}\s*[A-Za-z]*/gi,
+    /\b(Ryzen\s*\d+\s*\d*\w*|Core\s*i\d+[-\s]\w+)/gi,
+    /\b(Intel|AMD|NVIDIA)\s+[\w][\w\s-]{2,25}/gi,
+    /\b\w[\w\s-]{2,20}(GB|TB|GHz|MHz|W)\b/gi,
+  ];
+
+  // 1) Tenta extrair da mensagem atual
+  for (const p of patterns) {
+    const m = currentMsg.match(p);
+    if (m?.[0]?.trim().length > 3) return m[0].trim().substring(0, 80);
+  }
+
+  // 2) Busca no histórico recente
+  const recent = messages
+    .slice(-6)
+    .map(m => m.content.replace(/\n\n---[\s\S]*?---\n/g, '').replace(/[═]{2,}[\s\S]*?[═]{2,}/g, '').trim())
+    .join(' ');
+
+  for (const p of patterns) {
+    const m = recent.match(p);
+    if (m?.[0]?.trim().length > 3) return m[0].trim().substring(0, 80);
+  }
+
+  // 3) Fallback: palavras-chave curtas da mensagem atual (sem stopwords)
+  const stops = new Set(['quero','uma','um','para','de','do','da','com','que','me','dê','link','links','nas','os','as','faça','pesquisa','melhor','melhores','menor','onde','comprar']);
+  const words = currentMsg
+    .toLowerCase()
+    .replace(/[^a-zA-Z0-9À-ÿ\s]/g, ' ')
+    .split(/\s+/)
+    .filter(w => w.length > 3 && !stops.has(w))
+    .slice(0, 5)
+    .join(' ');
+
+  return words.substring(0, 80) || 'hardware';
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  Extrai contexto de produto do histórico da conversa (legado)
 // ─────────────────────────────────────────────────────────────────
 function extractContext(messages, currentMsg) {
   const recent = messages
@@ -215,11 +254,11 @@ async function googleSearch(query, key, cx) {
     const params = new URLSearchParams({
       key,
       cx,
-      q:           query,
-      gl:          'br',
-      hl:          'pt',
-      num:         '8',
-      dateRestrict:'m6',   // últimos 6 meses (mais abrangente)
+      q:   query,
+      gl:  'br',
+      hl:  'pt',
+      num: '8',
+      // sem dateRestrict — páginas de produto não têm data recente
     });
 
     const resp = await fetch(`${GOOGLE_URL}?${params}`);
